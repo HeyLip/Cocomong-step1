@@ -52,6 +52,14 @@
 ![image](https://user-images.githubusercontent.com/63987139/150682062-8918f67d-fc46-4bd4-81ec-f567a01d1612.png)   
    
    
+   
+> 11) google authentication을 활성화시켜야 합니다. 다음 이미지를 따라가면 됩니다.   
+![image](https://user-images.githubusercontent.com/63987139/150684375-4bba6b2c-f549-4e57-b05b-882c52fb64d7.png)   
+![image](https://user-images.githubusercontent.com/63987139/150684397-57fbc882-3f61-4942-a843-09d42d7623e9.png)   
+![image](https://user-images.githubusercontent.com/63987139/150684423-2b843b5f-70bc-408d-a307-334b3e6e4e58.png)   
+![image](https://user-images.githubusercontent.com/63987139/150684439-fd9a0869-ae00-4075-8288-164723bdeefd.png)   
+![image](https://user-images.githubusercontent.com/63987139/150684516-63650263-02ae-4cee-a028-c7f05004442b.png)   
+      
 이제 기본적인 Firebase 연결을 마쳤습니다. 이제는 앱 내의 이미지를 넣는 방법 알려드리겠습니다.   
    
    
@@ -73,3 +81,155 @@
 
 
 ## 3. google 로그인 구현
+이제 마지막으로 코드를 구현하면 됩니다. project폴더 안에 lib폴더에 main.dart, app.dart 마지막으로 login.dart파일을 만들어 주세요.   
+   
+1) main.dart는 아래 코드와 같이 구현합니다.   
+<pre>
+<code>
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/cupertino.dart';
+import 'app.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // Flutter 비동기 실행을 위한 코드입니다.
+  await Firebase.initializeApp();// Firebase 초기화
+  runApp(
+      const CocomongApp()
+  );
+}
+</code>
+</pre>   
+   
+   
+2) app.dart는 아래와 같이 구현합니다.
+<pre>
+<code>
+import 'package:flutter/material.dart';
+import 'login.dart';
+
+class CocomongApp extends StatelessWidget {
+  const CocomongApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Cocomong',
+      theme: ThemeData(
+        primaryColor: Color(0xFF5B836A), //앱의 전체 컬러를 설정합니다. 
+        appBarTheme: const AppBarTheme(
+            color: Color(0xFF5B836A) //앱의 전체 컬러를 설정합니다. 
+        ),
+      ),
+      home: const LoginPage(), //app.dart를 실행하면 login.dart에 있는 LoginPage를 실행시킵니다.
+    );
+  }
+}
+</code>
+</pre>   
+   
+   
+   
+3) 마지막으로 login.dart는 아래 코드와 같이 구현합니다.   
+<pre>
+<code>
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({Key? key}) : super(key: key);
+
+  @override
+  _LoginPageState createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+
+  CollectionReference database = FirebaseFirestore.instance.collection('user'); // 연결된 Firebase에 user라는 collection에 접근하기 위한 변수
+  late QuerySnapshot querySnapshot; // 기존에 로그인한 것인지 아닌지를 확인하기위해 선언한 변수
+
+  //----------google login을 위한 함수-----------------------------------------------
+  Future<UserCredential> signInWithGoogle() async {
+    // Trigger the authentication flow
+    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+
+    // Obtain the auth details from the request
+    final GoogleSignInAuthentication? googleAuth = await googleUser?.authentication;
+
+    // Create a new credential
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth?.accessToken,
+      idToken: googleAuth?.idToken,
+    );
+
+    // Once signed in, return the UserCredential
+    return await FirebaseAuth.instance.signInWithCredential(credential);
+  }
+  //--------------------------------------------------------------------------------
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        body: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          children: <Widget>[
+            const SizedBox(height: 150.0),
+            Column(
+              children: <Widget>[
+                Image.asset('assets/cocomong.png'), // <- 앞서 assets 폴더 안에 있는 cocomong image를 읽어주는 것이다.
+                const SizedBox(height: 16.0),
+              ],
+            ),
+            const SizedBox(height: 120.0),
+
+            // ---------------------- google login button ----------------------------
+            ElevatedButton(
+
+              style: ButtonStyle( // <- button의 색, 모양들을 결정하는 부분입니다.
+                backgroundColor: MaterialStateProperty.all(const Color(0xFF5B836A)),
+                foregroundColor: MaterialStateProperty.all(Colors.white),
+              ),
+
+
+              child: const Text('GOOGLE'), // <- button의 문구를 결정하는 부분
+              onPressed: () async { // <- button을 눌렀을 때, 어떤 기능을 수행하는지 구현하는 부분
+                
+                //-------그인 버튼을 눌렀을 때, 기존에 로그인했던 아이디이면 그냥 넘어가고 처음 로그인한 아이디이면 user collection에 user에 정보들을 추가합니다.--------------
+                final UserCredential userCredential = await signInWithGoogle();
+
+                User? user = userCredential.user;
+
+                if (user != null) { // <- 로그인했는지 아닌지 확인히난 부분
+                  int i;
+                  querySnapshot = await database.get();
+
+                  for(i = 0; i < querySnapshot.docs.length; i++){
+                    var a = querySnapshot.docs[i];
+
+                    if(a.get('uid') == user.uid){
+                      break;
+                    }
+                  }
+
+                  if(i == (querySnapshot.docs.length)){ // <- user의 이메일, 이름 그리고 firebase에 로그인할 때, 생기는 uid를 넣어줍니다.
+                    database.doc(user.uid).set({
+                      'email': user.email.toString(),
+                      'name': user.displayName.toString(),
+                      'uid': user.uid,
+                    });
+                  }
+                  //--------------------------------------------------------------------------
+                  
+                  
+                }
+              },
+            ),
+          ],
+        ),
+    );
+  }
+}
+</code>
+</pre>
